@@ -1,4 +1,5 @@
 const Base = require('./base.js');
+const bcrypt = require('bcryptjs');
 module.exports = class extends Base {
     async loginAction() {
         const username = this.post('username');
@@ -9,9 +10,9 @@ module.exports = class extends Base {
         if (think.isEmpty(admin)) {
             return this.fail(401, '用户名或密码不正确!');
         }
-        console.log(think.md5(password + '' + admin.password_salt));
-        console.log(admin.password);
-        if (think.md5(password + '' + admin.password_salt) !== admin.password) {
+        // 使用bcrypt验证密码
+        const isMatch = bcrypt.compareSync(password, admin.password);
+        if (!isMatch) {
             return this.fail(400, '用户名或密码不正确!!');
         }
         // 更新登录信息

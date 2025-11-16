@@ -1,6 +1,13 @@
 const Base = require('./base.js');
 const moment = require('moment');
-const md5 = require('md5');
+const bcrypt = require('bcryptjs');
+
+// 密码强度检查函数
+function isStrongPassword(password) {
+    // 至少8个字符，包含字母、数字和特殊字符
+    const regex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    return regex.test(password);
+}
 module.exports = class extends Base {
     /**
      * index action
@@ -31,13 +38,20 @@ module.exports = class extends Base {
     async adminAddAction() {
         let user = this.post('user');
         let password = user.password;
+        let salt = bcrypt.genSaltSync(10); // 生成盐值
         let upData = {
-            username: info.username,
-            password_salt: 'HIOLABS'
+            username: user.username,
+            password_salt: salt
         };
-        if (password.replace(/(^\s*)|(\s*$)/g, "").length != 0) {
-            password = md5(info.password + '' + upData.password_salt);
-            upData.password = password;
+        if (password.trim().length != 0) {
+            // 密码强度检查
+            if (!isStrongPassword(password)) {
+                return this.fail(400, '密码强度不足，至少8个字符，包含字母、数字和特殊字符');
+            }
+            let hashedPassword = bcrypt.hashSync(password, salt);
+            upData.password = hashedPassword;
+            // 记录加密日志
+            think.logger.info(`用户 ${user.username} 密码加密成功，盐值: ${salt}`);
         }
         await this.model('admin').add(upData);
         return this.success();
@@ -50,9 +64,17 @@ module.exports = class extends Base {
         };
         if (change == true) {
             let newPassword = user.newpassword;
-            if (newPassword.replace(/(^\s*)|(\s*$)/g, "").length != 0) {
-                newPassword = md5(user.newpassword + '' + user.password_salt);
-                upData.password = newPassword;
+            if (newPassword.trim().length != 0) {
+                // 密码强度检查
+                if (!isStrongPassword(newPassword)) {
+                    return this.fail(400, '密码强度不足，至少8个字符，包含字母、数字和特殊字符');
+                }
+                let salt = bcrypt.genSaltSync(10);
+                let hashedPassword = bcrypt.hashSync(newPassword, salt);
+                upData.password = hashedPassword;
+                upData.password_salt = salt;
+                // 记录加密日志
+                think.logger.info(`用户 ${user.username} 密码更新加密成功，盐值: ${salt}`);
             }
         }
         let ex = await this.model('admin').where({
